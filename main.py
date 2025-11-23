@@ -50,8 +50,10 @@ def login(driver, username, password):
 
 def select_date(driver):
     driver.implicitly_wait(5)
-    bouton_valider = driver.find_element(By.CLASS_NAME, "Cal__Day__selection")
-    bouton_valider.click()
+    date_button = driver.find_element(By.XPATH, f".//li[@data-date=\"{date}\"]")
+    date_button.click()
+    # bouton_valider = driver.find_element(By.CLASS_NAME, "Cal__Day__selection")
+    # bouton_valider.click()
 
 def select_time_slot(driver, time_slot):
     (sh, sm), (eh, em) = unpack_time_slot(time_slot)
@@ -92,6 +94,19 @@ def format_event_time(event_time):
     eh, em = map(int, end.split("h"))
     return sh, sm, eh, em
 
+def clean_innerHTML(innerHTML):
+    replacements = {
+        "&amp;": "&",
+        "&lt;": "<",
+        "&gt;": ">",
+        "&quot;": "\"",
+        "&#39;": "'",
+        "&nbsp;": " ",
+    }
+    for old, new in replacements.items():
+        innerHTML = innerHTML.replace(old, new)
+    return innerHTML
+
 def explore_rooms(driver, rooms_dict):
     driver.implicitly_wait(15)
     view_more_button = driver.find_element(By.XPATH, "/html/body/div/div/section/div[1]/div[4]/div[2]/ul[2]/div[1]/button")
@@ -102,14 +117,21 @@ def explore_rooms(driver, rooms_dict):
     rooms.extend(parent2.find_elements(By.XPATH, "./li"))
 
     for room in rooms:
-        room_name = room.find_element(By.XPATH, ".//h2").text.split(",")[0]
-        
+        room_name = clean_innerHTML(room.find_element(By.XPATH, ".//h2").get_attribute("innerHTML")).split(",")[0]
+
         rooms_dict[room_name] = {"AVAILABLE": False,
                                  "EVENTS": {}}
 
         WebDriverWait(driver, 10).until(
             EC.invisibility_of_element_located((By.XPATH, "//*[@id=\"roomBookModal\"]"))
         )
+
+        room_info_ul = room.find_element(By.XPATH, ".//ul")
+        room_info_lis = room_info_ul.find_elements(By.XPATH, "./li")
+        if len(room_info_lis) > 3:
+            rooms_dict[room_name]["AVAILABLE"] = False
+        else:
+            rooms_dict[room_name]["AVAILABLE"] = True
         
         room.click()
         driver.implicitly_wait(3)
@@ -120,16 +142,15 @@ def explore_rooms(driver, rooms_dict):
             case "U": events_number = 1
             case _: events_number = int(events_innerHTML[0])
         
-        if events_number == 0:
-            rooms_dict[room_name]["AVAILABLE"] = True
-        else:
+        
+        if events_number > 0:
             events_parent = driver.find_element(By.XPATH, "/html/body/div[1]/div/section/div[2]/div/div/div[2]/div[1]/div")
             events = events_parent.find_elements(By.XPATH, "./div")
             for event in events:
                 event_title = event.find_element(By.XPATH, "./div")
-                event_name = event_title.find_element(By.XPATH, "./h5").text
+                event_name = event_title.find_element(By.XPATH, "./h5").get_attribute("innerHTML")
                 event_time = event_title.find_element(By.XPATH, "./span").get_attribute("innerHTML")
-                event_author = event.find_element(By.XPATH, "./span/a").text
+                event_author = clean_innerHTML(event.find_element(By.XPATH, "./span/a").get_attribute("innerHTML"))
                 
                 event_sh, event_sm, event_eh, event_em = format_event_time(event_time)
 
@@ -145,7 +166,9 @@ def explore_rooms(driver, rooms_dict):
         time.sleep(0.6)
         cancel_button.click()
 
-def display_info(rooms_dict):
+def display_info(rooms_dict, date, time_slot):
+    print("--------------------------------------------")
+    print(f"LE {date} À {time_slot}")
     print("--------------------------------------------")
     for room_name, room_info in rooms_dict.items():
         print(f"SALLE: {room_name}")
@@ -153,9 +176,10 @@ def display_info(rooms_dict):
             print("  ETAT: DISPONIBLE")
         else:
             print("  ETAT: NON DISPONIBLE")
+        if room_info["EVENTS"]:
             print("  RESERVATIONS:")
             for event_name, event_info in room_info["EVENTS"].items():
-                print(f"    - {event_name}: {event_info['TIMESPAN']} | RÉSERVÉ PAR: {event_info['AUTHOR']}")
+                print(f"    - {event_name}: {event_info['TIMESPAN']} | RÉSERVÉE PAR: {event_info['AUTHOR']}")
         print("--------------------------------------------")
 
 def main(USERNAME, PASSWORD, date, time_slot):
@@ -174,7 +198,7 @@ def main(USERNAME, PASSWORD, date, time_slot):
 
     driver.quit()
     
-    display_info(rooms_dict)
+    display_info(rooms_dict, date, time_slot)
     
 
 if __name__ == "__main__":
