@@ -1,6 +1,7 @@
 ### TODO : REFACTORING GENERAL DU CODE
 ### TODO : AJOUTER DES COMMENTS
 ### TODO : AJOUTER UN README / UNE DOCUMENTATION
+### TODO : AJOUTER LE CAS "STU" POUR LA RESERVATION DE SALLE
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -195,7 +196,6 @@ def display_info(rooms_dict, available_rooms, date, time_slot):
             for event_name, event_info in room_info["EVENTS"].items():
                 print(f"    - {event_name}: {event_info['TIMESPAN']} | RÉSERVÉE PAR: {event_info['AUTHOR']}")
         print("--------------------------------------------")
-    print(available_rooms)
 
 def book_room(driver, room, TITLE):
     time.sleep(3)
@@ -209,7 +209,7 @@ def book_room(driver, room, TITLE):
 
 def main(USERNAME, PASSWORD, TITLE, date, time_slot, room_type):
     options = Options()
-    # options.add_argument("--headless")
+    options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
     driver.get("https://resa.centralesupelec.fr/")
 
