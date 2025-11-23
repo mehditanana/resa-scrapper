@@ -1,3 +1,7 @@
+### TODO : REFACTORING GENERAL DU CODE
+### TODO : AJOUTER DES COMMENTS
+### TODO : AJOUTER UN README / UNE DOCUMENTATION
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -36,7 +40,7 @@ def read_booking_date():
     if 3 <= len(sys.argv) <= 4:
         date = sys.argv[1]  # format: YYYY-MM-DD
         time_slot = sys.argv[2]  # format: HH:MM-HH:MM
-        room_type = sys.argv[3]  # "solo" or "group"
+        room_type = sys.argv[3] if len(sys.argv) == 4 else "_" # "solo" or "group" or "_"
         
         if not is_timeslot_legit(time_slot):
             print("Invalid time slot duration. It must be between 1 and 119 minutes.")
@@ -194,9 +198,9 @@ def display_info(rooms_dict, available_rooms, date, time_slot):
     print(available_rooms)
 
 def book_room(driver, room, TITLE):
-    time.sleep(1)
+    time.sleep(3)
     room.click()
-    time.sleep(1)
+    time.sleep(3)
     booking_title_input = driver.find_element(By.XPATH, "//*[@id=\"eventName\"]")
     booking_title_input.clear()
     booking_title_input.send_keys(TITLE)
@@ -217,31 +221,31 @@ def main(USERNAME, PASSWORD, TITLE, date, time_slot, room_type):
     available_rooms = {}
     rooms_dict = {}
     explore_rooms(driver, rooms_dict, available_rooms)
+    
+    display_info(rooms_dict, available_rooms, date, time_slot)
 
     if room_type != "_":
-        salle_disponible = True
+        salle_disponible = False
         if room_type == "solo":
             for room_name in SALLES_SOLO:
                 if room_name in available_rooms:
-                    print(f"Salle solo disponible: {room_name}")
+                    salle_disponible = True
                     room = available_rooms[room_name]
                     book_room(driver, room, TITLE)
+                    print(f"DEMANDE DE RÉSERVATION DE LA {room_name} POUR LE {date} À {time_slot} ENVOYÉE.")
                     break
-                salle_disponible = False
-            if not salle_disponible: print("Aucune salle solo disponible.")
         elif room_type == "group":
             for room_name in SALLES_GROUPES:
                 if room_name in available_rooms:
+                    salle_disponible = True
                     print(f"Salle de groupe disponible: {room_name}")
                     room = available_rooms[room_name]
                     book_room(driver, room, TITLE)
+                    print(f"DEMANDE DE RÉSERVATION DE LA {room_name} POUR LE {date} À {time_slot} ENVOYÉE.")
                     break
-                salle_disponible = False
-            if not salle_disponible: print("Aucune salle de groupe disponible.")
+        if not salle_disponible: print("AUCUNE SALLE DISPONIBLE POUR TYPE DEMANDÉ.")
 
     driver.quit()
-    
-    display_info(rooms_dict, available_rooms, date, time_slot)
     
 
 if __name__ == "__main__":
