@@ -9,6 +9,9 @@ import os
 import sys
 import time
 
+SALLES_SOLO = ["e.090", "e.008", "e.092"]
+SALLES_GROUPES = ["e.010", "e.012", "e.091"]
+
 def unpack_time_slot(timeslot):
     start_str, end_str = timeslot.split("-")
     sh, sm = map(int, start_str.split(":"))
@@ -26,16 +29,22 @@ def load_credentials():
     load_dotenv()
     USERNAME = os.getenv("USERNAME")
     PASSWORD = os.getenv("PASSWORD")
-    return USERNAME, PASSWORD
+    TITLE = os.getenv("TITLE")
+    return USERNAME, PASSWORD, TITLE
 
 def read_booking_date():
-    date = sys.argv[1]  # format: YYYY-MM-DD
-    time_slot = sys.argv[2]  # format: HH:MM-HH:MM
-    
-    if not is_timeslot_legit(time_slot):
-        print("Invalid time slot duration. It must be between 1 and 119 minutes.")
+    if 3 <= len(sys.argv) <= 4:
+        date = sys.argv[1]  # format: YYYY-MM-DD
+        time_slot = sys.argv[2]  # format: HH:MM-HH:MM
+        room_type = sys.argv[3]  # "solo" or "group"
+        
+        if not is_timeslot_legit(time_slot):
+            print("Invalid time slot duration. It must be between 1 and 119 minutes.")
+            sys.exit(1)
+        return date, time_slot, room_type
+    else: 
+        print("Usage: python main.py <date: YYYY-MM-DD> <time_slot: HH:MM-HH:MM> <room_type: solo/group/_>")
         sys.exit(1)
-    return date, time_slot
 
 def login(driver, username, password):
     username_input = driver.find_element(By.ID, "username")
@@ -107,7 +116,7 @@ def clean_innerHTML(innerHTML):
         innerHTML = innerHTML.replace(old, new)
     return innerHTML
 
-def explore_rooms(driver, rooms_dict):
+def explore_rooms(driver, rooms_dict, available_rooms):
     driver.implicitly_wait(15)
     view_more_button = driver.find_element(By.XPATH, "/html/body/div/div/section/div[1]/div[4]/div[2]/ul[2]/div[1]/button")
     view_more_button.click()
@@ -131,6 +140,7 @@ def explore_rooms(driver, rooms_dict):
         if len(room_info_lis) > 3:
             rooms_dict[room_name]["AVAILABLE"] = False
         else:
+            available_rooms[room_name] = room
             rooms_dict[room_name]["AVAILABLE"] = True
         
         room.click()
@@ -166,7 +176,7 @@ def explore_rooms(driver, rooms_dict):
         time.sleep(0.6)
         cancel_button.click()
 
-def display_info(rooms_dict, date, time_slot):
+def display_info(rooms_dict, available_rooms, date, time_slot):
     print("--------------------------------------------")
     print(f"LE {date} À {time_slot}")
     print("--------------------------------------------")
@@ -181,10 +191,21 @@ def display_info(rooms_dict, date, time_slot):
             for event_name, event_info in room_info["EVENTS"].items():
                 print(f"    - {event_name}: {event_info['TIMESPAN']} | RÉSERVÉE PAR: {event_info['AUTHOR']}")
         print("--------------------------------------------")
+    print(available_rooms)
 
-def main(USERNAME, PASSWORD, date, time_slot):
+def book_room(driver, room, TITLE):
+    time.sleep(1)
+    room.click()
+    time.sleep(1)
+    booking_title_input = driver.find_element(By.XPATH, "//*[@id=\"eventName\"]")
+    booking_title_input.clear()
+    booking_title_input.send_keys(TITLE)
+    confirm_button = driver.find_element(By.XPATH, "/html/body/div[1]/div/section/div[2]/div/div/div[3]/button[2]")
+    confirm_button.click()
+
+def main(USERNAME, PASSWORD, TITLE, date, time_slot, room_type):
     options = Options()
-    options.add_argument("--headless")
+    # options.add_argument("--headless")
     driver = webdriver.Firefox(options=options)
     driver.get("https://resa.centralesupelec.fr/")
 
@@ -193,15 +214,37 @@ def main(USERNAME, PASSWORD, date, time_slot):
     select_time_slot(driver, time_slot)
     filter_search(driver)
 
+    available_rooms = {}
     rooms_dict = {}
-    explore_rooms(driver, rooms_dict)
+    explore_rooms(driver, rooms_dict, available_rooms)
+
+    if room_type != "_":
+        salle_disponible = True
+        if room_type == "solo":
+            for room_name in SALLES_SOLO:
+                if room_name in available_rooms:
+                    print(f"Salle solo disponible: {room_name}")
+                    room = available_rooms[room_name]
+                    book_room(driver, room, TITLE)
+                    break
+                salle_disponible = False
+            if not salle_disponible: print("Aucune salle solo disponible.")
+        elif room_type == "group":
+            for room_name in SALLES_GROUPES:
+                if room_name in available_rooms:
+                    print(f"Salle de groupe disponible: {room_name}")
+                    room = available_rooms[room_name]
+                    book_room(driver, room, TITLE)
+                    break
+                salle_disponible = False
+            if not salle_disponible: print("Aucune salle de groupe disponible.")
 
     driver.quit()
     
-    display_info(rooms_dict, date, time_slot)
+    display_info(rooms_dict, available_rooms, date, time_slot)
     
 
 if __name__ == "__main__":
-    USERNAME, PASSWORD = load_credentials()
-    date, time_slot = read_booking_date()
-    main(USERNAME, PASSWORD, date, time_slot)
+    USERNAME, PASSWORD, TITLE = load_credentials()
+    date, time_slot, room_type = read_booking_date()
+    main(USERNAME, PASSWORD, TITLE, date, time_slot, room_type)
